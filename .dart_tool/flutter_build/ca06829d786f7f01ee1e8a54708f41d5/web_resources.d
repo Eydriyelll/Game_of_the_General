@@ -1,0 +1,1 @@
+ C:\\Users\\ADMIN\\Documents\\game_of_generals_v2\\build\\web\\manifest.json:  C:\\Users\\ADMIN\\Documents\\game_of_generals_v2\\web\\index.html C:\\Users\\ADMIN\\Documents\\game_of_generals_v2\\web\\manifest.json

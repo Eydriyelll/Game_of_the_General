@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomCode": {
+        ".read": true,
+
+        "board": {
+          ".read": true,
+          ".write": true
+        },
+
+        "moveHistory": {
+          ".read": true,
+          ".write": true
+        },
+
+        ".write": true
+      }
+    }
+  }
+}

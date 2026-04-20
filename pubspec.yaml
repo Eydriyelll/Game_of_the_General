@@ -1,0 +1,42 @@
+name: game_of_generals
+description: Game of the Generals - Filipino Strategy Board Game
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^2.24.2
+  firebase_database: ^10.4.0
+  uuid: ^4.3.3
+  google_fonts: ^6.1.0
+  animated_text_kit: ^4.2.2
+  flutter_animate: ^4.5.0
+  provider: ^6.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/pieces/gen5.png
+    - assets/pieces/gen4.png
+    - assets/pieces/gen3.png
+    - assets/pieces/gen2.png
+    - assets/pieces/gen1.png
+    - assets/pieces/colonel.png
+    - assets/pieces/ltcolonel.png
+    - assets/pieces/major.png
+    - assets/pieces/captain.png
+    - assets/pieces/firstlt.png
+    - assets/pieces/secondlt.png
+    - assets/pieces/sergeant.png
+    - assets/pieces/spy.png
+    - assets/pieces/private.png
+    - assets/pieces/flag.png
