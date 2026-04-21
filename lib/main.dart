@@ -22,7 +22,7 @@ class GameOfGeneralsApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => GameProvider(),
       child: MaterialApp(
-        title: 'Game of the Generals',
+        title: 'Games of the General',
         theme: AppTheme.theme,
         debugShowCheckedModeBanner: false,
         home: const LobbyScreen(),

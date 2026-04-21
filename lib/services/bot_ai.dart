@@ -24,19 +24,23 @@ class BotAI {
 
   String get difficultyLabel {
     switch (difficulty) {
-      case BotDifficulty.easy:    return 'Easy';
-      case BotDifficulty.medium:  return 'Medium';
-      case BotDifficulty.hard:    return 'Hard';
-      case BotDifficulty.extreme: return 'Extreme';
+      case BotDifficulty.easy:
+        return 'Easy';
+      case BotDifficulty.medium:
+        return 'Medium';
+      case BotDifficulty.hard:
+        return 'Hard';
+      case BotDifficulty.extreme:
+        return 'Extreme';
     }
   }
 
   // ─── SETUP: Place bot pieces on rows 5-7 ──────────────────────────────────
 
   /// Returns a map of position key → Piece for the bot's initial placement.
-  Map<String, Piece> generateSetup() {
-    final pieces = createPieceSet(PieceOwner.player2);
-    final positions = _allSetupPositions(); // rows 5,6,7
+  Map<String, Piece> generateSetup({PieceOwner owner = PieceOwner.player2}) {
+    final pieces = createPieceSet(owner);
+    final positions = _allSetupPositions(owner: owner);
     positions.shuffle(_rand);
 
     Map<String, Piece> setup = {};
@@ -68,7 +72,8 @@ class BotAI {
     return setup;
   }
 
-  void _mediumSetup(List<Piece> pieces, List<BoardPosition> positions, Map<String, Piece> setup) {
+  void _mediumSetup(List<Piece> pieces, List<BoardPosition> positions,
+      Map<String, Piece> setup) {
     // Put flag somewhere in back row (row 7), rest random
     final flag = pieces.firstWhere((p) => p.rank == PieceRank.flag);
     final others = pieces.where((p) => p.rank != PieceRank.flag).toList();
@@ -78,29 +83,42 @@ class BotAI {
     final backRow = positions.where((p) => p.row == 7).toList()..shuffle(_rand);
     setup[backRow.first.key] = flag;
 
-    final remaining = positions.where((p) => p.key != backRow.first.key).toList()..shuffle(_rand);
+    final remaining = positions
+        .where((p) => p.key != backRow.first.key)
+        .toList()
+      ..shuffle(_rand);
     for (int i = 0; i < others.length; i++) {
       setup[remaining[i].key] = others[i];
     }
   }
 
-  void _hardSetup(List<Piece> pieces, List<BoardPosition> positions, Map<String, Piece> setup) {
-    final flag     = pieces.firstWhere((p) => p.rank == PieceRank.flag);
-    final spies    = pieces.where((p) => p.rank == PieceRank.spy).toList();
+  void _hardSetup(List<Piece> pieces, List<BoardPosition> positions,
+      Map<String, Piece> setup) {
+    final flag = pieces.firstWhere((p) => p.rank == PieceRank.flag);
+    final spies = pieces.where((p) => p.rank == PieceRank.spy).toList();
     final privates = pieces.where((p) => p.rank == PieceRank.private).toList();
-    final generals = pieces.where((p) => [
-      PieceRank.fiveStar, PieceRank.fourStar, PieceRank.threeStar,
-      PieceRank.twoStar, PieceRank.oneStar
-    ].contains(p.rank)).toList();
-    final rest = pieces.where((p) =>
-      p.rank != PieceRank.flag &&
-      p.rank != PieceRank.spy &&
-      p.rank != PieceRank.private &&
-      !generals.contains(p)).toList()..shuffle(_rand);
+    final generals = pieces
+        .where((p) => [
+              PieceRank.fiveStar,
+              PieceRank.fourStar,
+              PieceRank.threeStar,
+              PieceRank.twoStar,
+              PieceRank.oneStar
+            ].contains(p.rank))
+        .toList();
+    final rest = pieces
+        .where((p) =>
+            p.rank != PieceRank.flag &&
+            p.rank != PieceRank.spy &&
+            p.rank != PieceRank.private &&
+            !generals.contains(p))
+        .toList()
+      ..shuffle(_rand);
 
-    final backRow  = positions.where((p) => p.row == 7).toList()..shuffle(_rand);
-    final midRow   = positions.where((p) => p.row == 6).toList()..shuffle(_rand);
-    final frontRow = positions.where((p) => p.row == 5).toList()..shuffle(_rand);
+    final backRow = positions.where((p) => p.row == 7).toList()..shuffle(_rand);
+    final midRow = positions.where((p) => p.row == 6).toList()..shuffle(_rand);
+    final frontRow = positions.where((p) => p.row == 5).toList()
+      ..shuffle(_rand);
 
     int bIdx = 0, mIdx = 0, fIdx = 0;
 
@@ -120,7 +138,9 @@ class BotAI {
     }
     // Fill remaining
     final allRemaining = [
-      ...backRow.skip(bIdx), ...midRow.skip(mIdx), ...frontRow.skip(fIdx)
+      ...backRow.skip(bIdx),
+      ...midRow.skip(mIdx),
+      ...frontRow.skip(fIdx)
     ]..shuffle(_rand);
     int rIdx = 0;
     for (final p in rest) {
@@ -128,70 +148,114 @@ class BotAI {
     }
   }
 
-  void _extremeSetup(List<Piece> pieces, List<BoardPosition> positions, Map<String, Piece> setup) {
-    final flag     = pieces.firstWhere((p) => p.rank == PieceRank.flag);
-    final spies    = pieces.where((p) => p.rank == PieceRank.spy).toList();
+  void _extremeSetup(List<Piece> pieces, List<BoardPosition> positions,
+      Map<String, Piece> setup) {
+    final flag = pieces.firstWhere((p) => p.rank == PieceRank.flag);
+    final spies = pieces.where((p) => p.rank == PieceRank.spy).toList();
     final privates = pieces.where((p) => p.rank == PieceRank.private).toList();
     final fiveStar = pieces.firstWhere((p) => p.rank == PieceRank.fiveStar);
-    final highOfficers = pieces.where((p) => [
-      PieceRank.fourStar, PieceRank.threeStar, PieceRank.twoStar, PieceRank.oneStar
-    ].contains(p.rank)).toList();
-    final midOfficers = pieces.where((p) => [
-      PieceRank.colonel, PieceRank.ltColonel, PieceRank.major, PieceRank.captain
-    ].contains(p.rank)).toList();
-    final lowOfficers = pieces.where((p) => [
-      PieceRank.firstLt, PieceRank.secondLt, PieceRank.sergeant
-    ].contains(p.rank)).toList();
+    final highOfficers = pieces
+        .where((p) => [
+              PieceRank.fourStar,
+              PieceRank.threeStar,
+              PieceRank.twoStar,
+              PieceRank.oneStar
+            ].contains(p.rank))
+        .toList();
+    final midOfficers = pieces
+        .where((p) => [
+              PieceRank.colonel,
+              PieceRank.ltColonel,
+              PieceRank.major,
+              PieceRank.captain
+            ].contains(p.rank))
+        .toList();
+    final lowOfficers = pieces
+        .where((p) => [
+              PieceRank.firstLt,
+              PieceRank.secondLt,
+              PieceRank.sergeant
+            ].contains(p.rank))
+        .toList();
 
     // Back row: flag in col 0 or 8 (corner), 5-star nearby, privates flanking
-    final backRow  = positions.where((p) => p.row == 7).toList();
+    final backRow = positions.where((p) => p.row == 7).toList();
     backRow.sort((a, b) => a.col.compareTo(b.col));
-    final midRow   = positions.where((p) => p.row == 6).toList()..shuffle(_rand);
-    final frontRow = positions.where((p) => p.row == 5).toList()..shuffle(_rand);
+    final midRow = positions.where((p) => p.row == 6).toList()..shuffle(_rand);
+    final frontRow = positions.where((p) => p.row == 5).toList()
+      ..shuffle(_rand);
 
     // Flag in corner col 0
-    final flagPos = backRow.firstWhere((p) => p.col == 0, orElse: () => backRow[0]);
+    final flagPos =
+        backRow.firstWhere((p) => p.col == 0, orElse: () => backRow[0]);
     setup[flagPos.key] = flag;
 
     // 5-Star next to flag
     final nearFlag = backRow.where((p) => p.key != flagPos.key).toList();
-    nearFlag.sort((a, b) => (a.col - flagPos.col).abs().compareTo((b.col - flagPos.col).abs()));
+    nearFlag.sort((a, b) =>
+        (a.col - flagPos.col).abs().compareTo((b.col - flagPos.col).abs()));
     int bIdx = 0;
-    if (nearFlag.isNotEmpty) { setup[nearFlag[bIdx].key] = fiveStar; bIdx++; }
+    if (nearFlag.isNotEmpty) {
+      setup[nearFlag[bIdx].key] = fiveStar;
+      bIdx++;
+    }
 
     // High officers fill back row
     for (final o in highOfficers) {
-      if (bIdx < nearFlag.length) { setup[nearFlag[bIdx].key] = o; bIdx++; }
+      if (bIdx < nearFlag.length) {
+        setup[nearFlag[bIdx].key] = o;
+        bIdx++;
+      }
     }
 
     // Spies in front row (attackers)
     int fIdx = 0;
     for (final s in spies) {
-      if (fIdx < frontRow.length) { setup[frontRow[fIdx].key] = s; fIdx++; }
+      if (fIdx < frontRow.length) {
+        setup[frontRow[fIdx].key] = s;
+        fIdx++;
+      }
     }
     // Privates spread front+mid
     int mIdx = 0;
     for (final p in privates) {
-      if (fIdx < frontRow.length) { setup[frontRow[fIdx].key] = p; fIdx++; }
-      else if (mIdx < midRow.length) { setup[midRow[mIdx].key] = p; mIdx++; }
+      if (fIdx < frontRow.length) {
+        setup[frontRow[fIdx].key] = p;
+        fIdx++;
+      } else if (mIdx < midRow.length) {
+        setup[midRow[mIdx].key] = p;
+        mIdx++;
+      }
     }
     // Mid officers in middle
     for (final o in midOfficers) {
-      if (mIdx < midRow.length) { setup[midRow[mIdx].key] = o; mIdx++; }
+      if (mIdx < midRow.length) {
+        setup[midRow[mIdx].key] = o;
+        mIdx++;
+      }
     }
     // Low officers fill gaps
-    final allKeys = {...backRow.map((p) => p.key), ...midRow.map((p) => p.key), ...frontRow.map((p) => p.key)};
+    final allKeys = {
+      ...backRow.map((p) => p.key),
+      ...midRow.map((p) => p.key),
+      ...frontRow.map((p) => p.key)
+    };
     final usedKeys = setup.keys.toSet();
     final freeSlots = allKeys.difference(usedKeys).toList()..shuffle(_rand);
     int sIdx = 0;
     for (final o in lowOfficers) {
-      if (sIdx < freeSlots.length) { setup[freeSlots[sIdx]] = o; sIdx++; }
+      if (sIdx < freeSlots.length) {
+        setup[freeSlots[sIdx]] = o;
+        sIdx++;
+      }
     }
   }
 
-  List<BoardPosition> _allSetupPositions() {
+  List<BoardPosition> _allSetupPositions(
+      {PieceOwner owner = PieceOwner.player2}) {
     List<BoardPosition> positions = [];
-    for (int row in [5, 6, 7]) {
+    final rows = owner == PieceOwner.player1 ? [0, 1, 2] : [5, 6, 7];
+    for (int row in rows) {
       for (int col = 0; col < 9; col++) {
         positions.add(BoardPosition(row, col));
       }
@@ -205,10 +269,14 @@ class BotAI {
   /// Returns null if no moves available.
   BotMove? chooseMove(Map<String, Map<String, dynamic>> board) {
     switch (difficulty) {
-      case BotDifficulty.easy:    return _easyMove(board);
-      case BotDifficulty.medium:  return _mediumMove(board);
-      case BotDifficulty.hard:    return _hardMove(board);
-      case BotDifficulty.extreme: return _extremeMove(board);
+      case BotDifficulty.easy:
+        return _easyMove(board);
+      case BotDifficulty.medium:
+        return _mediumMove(board);
+      case BotDifficulty.hard:
+        return _hardMove(board);
+      case BotDifficulty.extreme:
+        return _extremeMove(board);
     }
   }
 
@@ -267,7 +335,8 @@ class BotAI {
     return best;
   }
 
-  int _scoreMove(BotMove move, Map<String, Map<String, dynamic>> board, {int depth = 1}) {
+  int _scoreMove(BotMove move, Map<String, Map<String, dynamic>> board,
+      {int depth = 1}) {
     int score = 0;
     final moverData = board[move.from.key];
     if (moverData == null) return 0;
@@ -298,7 +367,8 @@ class BotAI {
 
     // Advance toward enemy territory (lower row = enemy side for player2)
     if (targetData == null) {
-      final advance = move.from.row - move.to.row; // positive = moving toward row 0
+      final advance =
+          move.from.row - move.to.row; // positive = moving toward row 0
       score += advance * 2;
     }
 
@@ -337,21 +407,36 @@ class BotAI {
 
   int _pieceValue(PieceRank rank) {
     switch (rank) {
-      case PieceRank.fiveStar:   return 15;
-      case PieceRank.fourStar:   return 14;
-      case PieceRank.threeStar:  return 13;
-      case PieceRank.twoStar:    return 12;
-      case PieceRank.oneStar:    return 11;
-      case PieceRank.colonel:    return 10;
-      case PieceRank.ltColonel:  return 9;
-      case PieceRank.major:      return 8;
-      case PieceRank.captain:    return 7;
-      case PieceRank.firstLt:    return 6;
-      case PieceRank.secondLt:   return 5;
-      case PieceRank.sergeant:   return 4;
-      case PieceRank.spy:        return 8; // high value, special role
-      case PieceRank.private:    return 3;
-      case PieceRank.flag:       return 100;
+      case PieceRank.fiveStar:
+        return 15;
+      case PieceRank.fourStar:
+        return 14;
+      case PieceRank.threeStar:
+        return 13;
+      case PieceRank.twoStar:
+        return 12;
+      case PieceRank.oneStar:
+        return 11;
+      case PieceRank.colonel:
+        return 10;
+      case PieceRank.ltColonel:
+        return 9;
+      case PieceRank.major:
+        return 8;
+      case PieceRank.captain:
+        return 7;
+      case PieceRank.firstLt:
+        return 6;
+      case PieceRank.secondLt:
+        return 5;
+      case PieceRank.sergeant:
+        return 4;
+      case PieceRank.spy:
+        return 8; // high value, special role
+      case PieceRank.private:
+        return 3;
+      case PieceRank.flag:
+        return 100;
     }
   }
 

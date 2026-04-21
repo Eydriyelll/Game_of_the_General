@@ -34,22 +34,21 @@ class GameProvider extends ChangeNotifier {
   List<MoveRecord> moveHistory = [];
   Map<String, Map<String, dynamic>> board = {};
 
-  // ── Setup: tracks where THIS player placed pieces ────────────────────────
-  // Key = position key, Value = Piece placed there
-  Map<String, Piece> localSetupBoard = {};
+  // ── Setup state using unique-indexed pieces ──────────────────────────────
+  // Every piece has a unique index (0-20) so duplicates are never confused.
+  Map<String, _IndexedPiece> _setupBoard = {}; // posKey → placed piece
+  List<_IndexedPiece> _trayPieces = []; // unplaced pieces
+  _IndexedPiece? _heldPiece; // currently selected/held
 
-  // Unplaced pieces still in the tray.
-  // We track them as a list; since there are duplicates (2 spies, 6 privates),
-  // we use index-based removal to avoid removing wrong duplicates.
-  List<Piece> unplacedPieces = [];
+  // Public getters for widgets
+  Map<String, Piece> get localSetupBoard =>
+      _setupBoard.map((k, v) => MapEntry(k, v.piece));
+  List<Piece> get unplacedPieces => _trayPieces.map((ip) => ip.piece).toList();
+  Piece? get selectedTrayPiece => _heldPiece?.piece;
+  bool get isHoldingBoardPiece =>
+      _heldPiece != null && _findOnBoard(_heldPiece!) != null;
 
-  // Which piece from the tray is currently selected (held)
-  Piece? _selectedTrayPiece;
-  Piece? get selectedTrayPiece => _selectedTrayPiece;
-
-  // Which board square is selected during gameplay
   BoardPosition? selectedPosition;
-
   StreamSubscription<DatabaseEvent>? _subscription;
 
   bool _challengeFlashLocal = false;
@@ -84,34 +83,35 @@ class GameProvider extends ChangeNotifier {
     return true;
   }
 
-  /// Start a single-player game against the bot.
-  Future<void> startBotGame(BotDifficulty difficulty) async {
+  Future<void> startBotGame(BotDifficulty difficulty,
+      {String role = 'player1'}) async {
     isBotGame = true;
     bot = BotAI(difficulty);
     final code = _generateRoomCode();
     roomCode = code;
-    playerRole = 'player1';
+    playerRole = role;
     player2Joined = true;
     await _firebase.createRoom(code);
-    _resetLocalSetup(PieceOwner.player1);
+    final owner = role == 'player1' ? PieceOwner.player1 : PieceOwner.player2;
+    _resetLocalSetup(owner);
     _listenToRoom(code);
-    // Bot immediately "joins"
     await _firebase.joinRoom(code);
     notifyListeners();
   }
 
   void _resetLocalSetup(PieceOwner owner) {
-    localSetupBoard = {};
-    unplacedPieces = createPieceSet(owner);
-    _selectedTrayPiece = null;
+    _setupBoard = {};
+    final pieces = createPieceSet(owner);
+    _trayPieces =
+        List.generate(pieces.length, (i) => _IndexedPiece(pieces[i], i));
+    _heldPiece = null;
     selectedPosition = null;
   }
 
   String _generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    final rand = DateTime.now().millisecondsSinceEpoch;
+    int n = DateTime.now().millisecondsSinceEpoch;
     String code = '';
-    int n = rand;
     for (int i = 0; i < 6; i++) {
       code += chars[n % chars.length];
       n ~/= chars.length;
@@ -125,8 +125,7 @@ class GameProvider extends ChangeNotifier {
     _subscription?.cancel();
     _subscription = _firebase.watchRoom(code).listen((event) {
       if (!event.snapshot.exists) return;
-      final data = event.snapshot.value as Map<dynamic, dynamic>;
-      _updateFromFirebase(data);
+      _updateFromFirebase(event.snapshot.value as Map<dynamic, dynamic>);
     });
   }
 
@@ -141,9 +140,7 @@ class GameProvider extends ChangeNotifier {
     drawOfferedBy = data['drawOfferedBy'];
 
     final newFlash = data['challengeFlash'] ?? false;
-    if (newFlash && !_challengeFlashLocal) {
-      _triggerChallengeFlash();
-    }
+    if (newFlash && !_challengeFlashLocal) _triggerChallengeFlash();
 
     if (data['winnerRole'] != null) winnerRole = data['winnerRole'];
     if (data['winReason'] != null) {
@@ -170,8 +167,10 @@ class GameProvider extends ChangeNotifier {
 
     notifyListeners();
 
-    // If it's bot's turn and game is playing, trigger bot move
-    if (isBotGame && phase == GamePhase.playing && currentTurn == 'player2' && !_botThinking) {
+    if (isBotGame &&
+        phase == GamePhase.playing &&
+        currentTurn != playerRole &&
+        !_botThinking) {
       _scheduleBotMove();
     }
   }
@@ -190,173 +189,219 @@ class GameProvider extends ChangeNotifier {
     if (_botThinking || bot == null || roomCode == null) return;
     _botThinking = true;
     notifyListeners();
-
-    // Delay to feel natural
-    final thinkTime = _botThinkDelay();
-    await Future.delayed(thinkTime);
-
-    if (phase != GamePhase.playing || currentTurn != 'player2') {
+    await Future.delayed(_botThinkDelay());
+    if (phase != GamePhase.playing || currentTurn == playerRole) {
       _botThinking = false;
       notifyListeners();
       return;
     }
-
+    final botRole = playerRole == 'player1' ? 'player2' : 'player1';
     final move = bot!.chooseMove(board);
     if (move != null) {
       await _firebase.executeMove(
         roomCode: roomCode!,
-        playerRole: 'player2',
+        playerRole: botRole,
         from: move.from,
         to: move.to,
         currentBoard: board,
       );
     }
-
     _botThinking = false;
     notifyListeners();
   }
 
   Duration _botThinkDelay() {
+    final ms = DateTime.now().millisecondsSinceEpoch;
     switch (bot?.difficulty) {
-      case BotDifficulty.easy:    return Duration(milliseconds: 800 + _randomMs(400));
-      case BotDifficulty.medium:  return Duration(milliseconds: 600 + _randomMs(400));
-      case BotDifficulty.hard:    return Duration(milliseconds: 500 + _randomMs(300));
-      case BotDifficulty.extreme: return Duration(milliseconds: 400 + _randomMs(200));
-      default:                    return const Duration(milliseconds: 700);
+      case BotDifficulty.easy:
+        return Duration(milliseconds: 800 + ms % 400);
+      case BotDifficulty.medium:
+        return Duration(milliseconds: 600 + ms % 400);
+      case BotDifficulty.hard:
+        return Duration(milliseconds: 500 + ms % 300);
+      case BotDifficulty.extreme:
+        return Duration(milliseconds: 400 + ms % 200);
+      default:
+        return const Duration(milliseconds: 700);
     }
   }
 
-  int _randomMs(int max) => (DateTime.now().millisecondsSinceEpoch % max);
-
   // ─── SETUP PHASE ──────────────────────────────────────────────────────────
 
-  List<int> get setupRows {
-    if (playerRole == 'player1') return [0, 1, 2];
-    return [5, 6, 7];
-  }
+  List<int> get setupRows => playerRole == 'player1' ? [0, 1, 2] : [5, 6, 7];
 
   bool isMySetupRow(int row) => setupRows.contains(row);
 
+  /// Select a tray piece by object identity.
   void selectPieceFromTray(Piece piece) {
-    _selectedTrayPiece = piece;
-    selectedPosition = null;
+    if (_trayPieces.isEmpty) return;
+    // Find by object identity first (most accurate)
+    _IndexedPiece? found;
+    for (final ip in _trayPieces) {
+      if (identical(ip.piece, piece)) {
+        found = ip;
+        break;
+      }
+    }
+    // Fallback: match by rank (for cases where piece object differs)
+    found ??= _trayPieces.firstWhere((ip) => ip.piece.rank == piece.rank,
+        orElse: () => _trayPieces.first);
+    _heldPiece = found;
     notifyListeners();
   }
 
-  void deselectTrayPiece() {
-    _selectedTrayPiece = null;
+  void deselectHeld() {
+    // If holding a board piece (picked up), put it back
+    _heldPiece = null;
     notifyListeners();
   }
 
-  /// Tap on a board square during setup.
-  /// ── BUG FIX: piece moved from one square to another is properly tracked ──
+  /// THE AUTHORITATIVE setup tap handler.
+  ///
+  /// Uses unique _IndexedPiece.index to track identity — NEVER confuses duplicates.
+  ///
+  /// State machine:
+  ///   [A] Holding ANY piece + tap valid square → place it there
+  ///   [B] Nothing held + tap occupied square  → pick it up (board or tray mode)
+  ///   [C] Nothing held + tap empty square     → no-op
+  ///   [D] Tap outside own rows               → deselect
   void tapSquareDuringSetup(BoardPosition pos) {
     if (!isMySetupRow(pos.row)) {
-      // Tapped outside own rows — deselect
-      _selectedTrayPiece = null;
+      _heldPiece = null;
       notifyListeners();
       return;
     }
 
-    if (_selectedTrayPiece != null) {
-      // ── Case A: holding a tray piece, place it ──────────────────────────
-      final existing = localSetupBoard[pos.key];
-      if (existing != null) {
-        // Return existing piece to unplaced list (it's being displaced)
-        unplacedPieces.add(existing);
+    final destOccupant = _setupBoard[pos.key]; // piece already on destination
+
+    if (_heldPiece != null) {
+      // ── [A] Place the held piece ─────────────────────────────────────────
+      final held = _heldPiece!;
+      final sourceKey = _findOnBoard(held); // null if coming from tray
+
+      if (sourceKey == pos.key) {
+        // Tapped the very square this piece is on → deselect only
+        _heldPiece = null;
+        notifyListeners();
+        return;
       }
-      localSetupBoard[pos.key] = _selectedTrayPiece!;
-      // Remove exactly ONE matching piece from unplaced (handles duplicates correctly)
-      final idx = unplacedPieces.indexWhere(
-          (p) => p.rank == _selectedTrayPiece!.rank);
-      if (idx != -1) unplacedPieces.removeAt(idx);
-      _selectedTrayPiece = null;
+
+      // Remove held piece from its source
+      if (sourceKey != null) {
+        _setupBoard.remove(sourceKey); // was on board
+      } else {
+        _trayPieces.removeWhere((ip) => ip.index == held.index); // was in tray
+      }
+
+      // Handle destination occupant
+      if (destOccupant != null) {
+        if (sourceKey != null) {
+          // Board-to-board swap: put destination piece where we came from
+          _setupBoard[sourceKey] = destOccupant;
+        } else {
+          // Tray-to-board: displaced piece goes back to tray
+          _trayPieces.add(destOccupant);
+        }
+      }
+
+      // Place held piece on destination
+      _setupBoard[pos.key] = held;
+      _heldPiece = null;
       notifyListeners();
-    } else if (localSetupBoard.containsKey(pos.key)) {
-      // ── Case B: no piece held, pick up the placed piece ─────────────────
-      // This lets player re-arrange: tap placed piece → it goes back to "held"
-      final pickedUp = localSetupBoard[pos.key]!;
-      localSetupBoard.remove(pos.key);
-      // Add back to unplaced so count is correct
-      unplacedPieces.add(pickedUp);
-      // Now hold it
-      _selectedTrayPiece = pickedUp;
+    } else if (destOccupant != null) {
+      // ── [B] Pick up the piece on this square ─────────────────────────────
+      _heldPiece = destOccupant;
       notifyListeners();
     }
-    // Case C: tapped empty square with nothing held → do nothing
+    // [C] Empty square, nothing held → no-op
   }
 
-  /// Drag-and-drop from tray onto board square.
+  /// Drag-and-drop handler. Resolves identity the same way as tap.
   void dropPieceOnSquare(Piece piece, BoardPosition pos) {
     if (!isMySetupRow(pos.row)) return;
 
-    // Remove from wherever it currently is
-    // Check if it's already on the board (being repositioned)
-    String? existingBoardKey;
-    for (final entry in localSetupBoard.entries) {
-      if (entry.value.rank == piece.rank && entry.value.owner == piece.owner) {
-        // Could be a duplicate (spy/private) — find exact same object reference
-        // We use a unique id approach: just find any piece of same rank from tray
+    // Locate the IndexedPiece by object identity
+    _IndexedPiece? ip;
+    for (final t in _trayPieces) {
+      if (identical(t.piece, piece)) {
+        ip = t;
         break;
       }
     }
-
-    final existing = localSetupBoard[pos.key];
-    if (existing != null) unplacedPieces.add(existing);
-    localSetupBoard[pos.key] = piece;
-    final idx = unplacedPieces.indexWhere((p) => p.rank == piece.rank);
-    if (idx != -1) unplacedPieces.removeAt(idx);
-    _selectedTrayPiece = null;
-    notifyListeners();
-  }
-
-  /// Move a PLACED piece from one square to another (both in setup rows).
-  /// This is the fix for the duplication bug: when swapping board→board,
-  /// we must NOT re-add the piece to unplaced.
-  void movePlacedPiece(BoardPosition from, BoardPosition to) {
-    if (!isMySetupRow(from.row) || !isMySetupRow(to.row)) return;
-    final pieceToMove = localSetupBoard[from.key];
-    if (pieceToMove == null) return;
-
-    final existing = localSetupBoard[to.key];
-    if (existing != null) {
-      // Swap: put existing piece back in from square
-      localSetupBoard[from.key] = existing;
-    } else {
-      // Simple move: free up the from square
-      localSetupBoard.remove(from.key);
+    if (ip == null) {
+      for (final e in _setupBoard.entries) {
+        if (identical(e.value.piece, piece)) {
+          ip = e.value;
+          break;
+        }
+      }
     }
-    localSetupBoard[to.key] = pieceToMove;
-    _selectedTrayPiece = null;
+    if (ip == null) return;
+
+    final sourceKey = _findOnBoard(ip);
+    final destOccupant = _setupBoard[pos.key];
+
+    if (sourceKey == pos.key) return; // same square
+
+    if (sourceKey != null) {
+      _setupBoard.remove(sourceKey);
+    } else {
+      _trayPieces.removeWhere((t) => t.index == ip!.index);
+    }
+
+    if (destOccupant != null) {
+      if (sourceKey != null) {
+        _setupBoard[sourceKey] = destOccupant; // swap
+      } else {
+        _trayPieces.add(destOccupant); // displace to tray
+      }
+    }
+
+    _setupBoard[pos.key] = ip;
+    _heldPiece = null;
     notifyListeners();
   }
 
-  bool get canConfirmSetup => unplacedPieces.isEmpty;
+  String? _findOnBoard(_IndexedPiece ip) {
+    for (final e in _setupBoard.entries) {
+      if (e.value.index == ip.index) return e.key;
+    }
+    return null;
+  }
+
+  /// True when all 21 pieces are on the board (tray empty) AND
+  /// the player is not currently holding an unplaced tray piece.
+  bool get canConfirmSetup {
+    if (_trayPieces.isNotEmpty) return false;
+    // If holding a piece that is NOT yet on the board → still unplaced
+    if (_heldPiece != null && _findOnBoard(_heldPiece!) == null) return false;
+    return true;
+  }
 
   Future<void> confirmSetup() async {
     if (!canConfirmSetup || roomCode == null || playerRole == null) return;
-    for (final entry in localSetupBoard.entries) {
-      final pos = BoardPosition.fromKey(entry.key);
+    for (final entry in _setupBoard.entries) {
       await _firebase.placePiece(
         roomCode: roomCode!,
-        pos: pos,
-        piece: entry.value,
+        pos: BoardPosition.fromKey(entry.key),
+        piece: entry.value.piece,
       );
     }
     await _firebase.setReady(roomCode: roomCode!, playerRole: playerRole!);
 
-    // If bot game: bot auto-places and confirms
     if (isBotGame && bot != null) {
-      final botSetup = bot!.generateSetup();
+      final botOwner =
+          playerRole == 'player1' ? PieceOwner.player2 : PieceOwner.player1;
+      final botRole = playerRole == 'player1' ? 'player2' : 'player1';
+      final botSetup = bot!.generateSetup(owner: botOwner);
       for (final entry in botSetup.entries) {
-        final pos = BoardPosition.fromKey(entry.key);
         await _firebase.placePiece(
           roomCode: roomCode!,
-          pos: pos,
+          pos: BoardPosition.fromKey(entry.key),
           piece: entry.value,
         );
       }
-      await _firebase.setReady(roomCode: roomCode!, playerRole: 'player2');
+      await _firebase.setReady(roomCode: roomCode!, playerRole: botRole);
     }
     notifyListeners();
   }
@@ -366,11 +411,9 @@ class GameProvider extends ChangeNotifier {
   bool get isMyTurn => currentTurn == playerRole;
 
   void selectSquare(BoardPosition pos) {
-    if (isBotGame && currentTurn == 'player2') return; // bot's turn
+    if (isBotGame && currentTurn != playerRole) return;
     if (!isMyTurn || phase != GamePhase.playing) return;
-
     final pieceData = board[pos.key];
-
     if (selectedPosition == null) {
       if (pieceData != null) {
         final piece = Piece.fromMap(pieceData);
@@ -387,13 +430,10 @@ class GameProvider extends ChangeNotifier {
       }
       if (_isValidMove(selectedPosition!, pos)) {
         _executeMove(selectedPosition!, pos);
-      } else if (pieceData != null) {
-        final piece = Piece.fromMap(pieceData);
-        if (_isMyPiece(piece)) {
-          selectedPosition = pos;
-          notifyListeners();
-          return;
-        }
+      } else if (pieceData != null && _isMyPiece(Piece.fromMap(pieceData))) {
+        selectedPosition = pos;
+        notifyListeners();
+        return;
       }
       selectedPosition = null;
       notifyListeners();
@@ -407,24 +447,17 @@ class GameProvider extends ChangeNotifier {
   }
 
   bool _isValidMove(BoardPosition from, BoardPosition to) {
-    final rowDiff = (from.row - to.row).abs();
-    final colDiff = (from.col - to.col).abs();
-    if (rowDiff + colDiff != 1) return false;
-    final targetData = board[to.key];
-    if (targetData != null) {
-      final target = Piece.fromMap(targetData);
-      if (_isMyPiece(target)) return false;
-    }
+    if ((from.row - to.row).abs() + (from.col - to.col).abs() != 1)
+      return false;
+    final t = board[to.key];
+    if (t != null && _isMyPiece(Piece.fromMap(t))) return false;
     return true;
   }
 
   List<BoardPosition> getValidMoves(BoardPosition pos) {
     return pos.adjacents.where((adj) {
-      final targetData = board[adj.key];
-      if (targetData != null) {
-        final target = Piece.fromMap(targetData);
-        if (_isMyPiece(target)) return false;
-      }
+      final t = board[adj.key];
+      if (t != null && _isMyPiece(Piece.fromMap(t))) return false;
       return true;
     }).toList();
   }
@@ -468,6 +501,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void resetGame() {
+    _subscription?.cancel();
     roomCode = null;
     playerRole = null;
     phase = GamePhase.waiting;
@@ -484,9 +518,9 @@ class GameProvider extends ChangeNotifier {
     _botThinking = false;
     moveHistory = [];
     board = {};
-    localSetupBoard = {};
-    unplacedPieces = [];
-    _selectedTrayPiece = null;
+    _setupBoard = {};
+    _trayPieces = [];
+    _heldPiece = null;
     selectedPosition = null;
     _challengeFlashLocal = false;
     notifyListeners();
@@ -497,4 +531,13 @@ class GameProvider extends ChangeNotifier {
     _subscription?.cancel();
     super.dispose();
   }
+}
+
+/// Wrapper giving every piece a unique integer index (0–20).
+/// This eliminates ALL duplication bugs with SPY×2 and PRIVATE×6
+/// because we track by index, never by rank alone.
+class _IndexedPiece {
+  final Piece piece;
+  final int index;
+  _IndexedPiece(this.piece, this.index);
 }

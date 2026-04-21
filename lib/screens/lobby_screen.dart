@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/game_provider.dart';
 import '../services/bot_ai.dart';
 import '../utils/app_theme.dart';
+import '../widgets/ph_decorators.dart';
 import 'setup_screen.dart';
 
 class LobbyScreen extends StatefulWidget {
@@ -81,7 +82,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: Stack(children: [
-        const _PhilippineBackground(),
+        const PhilippineBackground(),
         SafeArea(
           child: Center(
             child: SingleChildScrollView(
@@ -104,7 +105,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
   Widget _buildHeader() {
     return Column(children: [
       // Philippine sun
-      const _PhSunWidget(size: 72),
+      const PhSunWidget(size: 72),
       const SizedBox(height: 20),
       Text(
         'GAME OF THE',
@@ -126,6 +127,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
           letterSpacing: 3,
         ),
       ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
+      const SizedBox(height: 2),
+      Text(
+        'Games of the General',
+        textAlign: TextAlign.center,
+        style: GoogleFonts.rajdhani(
+          fontSize: 11,
+          letterSpacing: 3,
+          color: AppTheme.textSecondary.withOpacity(0.6),
+          fontStyle: FontStyle.italic,
+        ),
+      ).animate().fadeIn(delay: 400.ms),
       const SizedBox(height: 6),
       // Philippine flag stripe
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -262,7 +274,7 @@ class _LobbyScreenState extends State<LobbyScreen> {
         const SizedBox(height: 24),
         Center(
           child: Text(
-            'This is a Beta Phase release. Expect some bugs and rough edges! A final polished version will be released in the future with more features and improvements.',
+            'Filipino Strategy Board Game • Est. 1970',
             style: TextStyle(
                 color: AppTheme.textMuted, fontSize: 10, letterSpacing: 1),
           ),
@@ -274,8 +286,17 @@ class _LobbyScreenState extends State<LobbyScreen> {
 
 // ─── Bot Difficulty Dialog ────────────────────────────────────────────────────
 
-class _BotDifficultyDialog extends StatelessWidget {
+// ─── Bot Difficulty + Role Dialog (2-step) ──────────────────────────────────
+
+class _BotDifficultyDialog extends StatefulWidget {
   const _BotDifficultyDialog();
+  @override
+  State<_BotDifficultyDialog> createState() => _BotDifficultyDialogState();
+}
+
+class _BotDifficultyDialogState extends State<_BotDifficultyDialog> {
+  BotDifficulty? _selectedDifficulty;
+  String? _selectedRole; // 'player1' or 'player2'
 
   @override
   Widget build(BuildContext context) {
@@ -285,20 +306,96 @@ class _BotDifficultyDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: AppTheme.borderLight),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(22),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const _PhSunWidget(size: 40),
-          const SizedBox(height: 16),
-          Text('SELECT DIFFICULTY',
+          const PhSunWidget(size: 36),
+          const SizedBox(height: 14),
+          Text('VS COMPUTER',
               style: GoogleFonts.cinzel(
-                  fontSize: 16, color: AppTheme.textPrimary, letterSpacing: 2)),
-          const SizedBox(height: 20),
-          ...BotDifficulty.values.map((d) => _DifficultyTile(difficulty: d)),
+                  fontSize: 15, color: AppTheme.textPrimary, letterSpacing: 2)),
+          const SizedBox(height: 18),
+
+          // ── Step 1: Difficulty ──
+          _StepLabel(number: '1', label: 'SELECT DIFFICULTY'),
           const SizedBox(height: 8),
+          ...BotDifficulty.values.map((d) => _DiffTile(
+                difficulty: d,
+                isSelected: _selectedDifficulty == d,
+                onTap: () => setState(() => _selectedDifficulty = d),
+              )),
+
+          const SizedBox(height: 16),
+
+          // ── Step 2: Choose Side ──
+          _StepLabel(number: '2', label: 'CHOOSE YOUR SIDE'),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+                child: _RoleTile(
+              role: 'player1',
+              label: 'PLAYER 1',
+              subtitle: 'Moves first • Blue side',
+              icon: Icons.looks_one_rounded,
+              color: AppTheme.player1Color,
+              isSelected: _selectedRole == 'player1',
+              onTap: () => setState(() => _selectedRole = 'player1'),
+            )),
+            const SizedBox(width: 8),
+            Expanded(
+                child: _RoleTile(
+              role: 'player2',
+              label: 'PLAYER 2',
+              subtitle: 'Moves second • Red side',
+              icon: Icons.looks_two_rounded,
+              color: AppTheme.player2Color,
+              isSelected: _selectedRole == 'player2',
+              onTap: () => setState(() => _selectedRole = 'player2'),
+            )),
+          ]),
+
+          const SizedBox(height: 20),
+
+          // ── Start button ──
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: (_selectedDifficulty != null && _selectedRole != null)
+                  ? () async {
+                      final d = _selectedDifficulty!;
+                      final r = _selectedRole!;
+                      Navigator.pop(context);
+                      final provider = context.read<GameProvider>();
+                      await provider.startBotGame(d, role: r);
+                      if (context.mounted) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                              builder: (_) => const SetupScreen()),
+                        );
+                      }
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.phGold,
+                foregroundColor: Colors.black,
+                disabledBackgroundColor: AppTheme.border,
+                disabledForegroundColor: AppTheme.textMuted,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                textStyle: GoogleFonts.rajdhani(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    letterSpacing: 2),
+              ),
+              child: const Text('START BATTLE'),
+            ),
+          ),
+          const SizedBox(height: 6),
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+            child: Text('Cancel',
+                style: TextStyle(color: AppTheme.textMuted, fontSize: 12)),
           ),
         ]),
       ),
@@ -306,11 +403,43 @@ class _BotDifficultyDialog extends StatelessWidget {
   }
 }
 
-class _DifficultyTile extends StatelessWidget {
-  final BotDifficulty difficulty;
-  const _DifficultyTile({required this.difficulty});
+class _StepLabel extends StatelessWidget {
+  final String number, label;
+  const _StepLabel({required this.number, required this.label});
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Container(
+          width: 20,
+          height: 20,
+          decoration:
+              BoxDecoration(color: AppTheme.phGold, shape: BoxShape.circle),
+          child: Center(
+              child: Text(number,
+                  style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800))),
+        ),
+        const SizedBox(width: 8),
+        Text(label,
+            style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 10,
+                letterSpacing: 2,
+                fontWeight: FontWeight.w700)),
+      ]);
+}
 
-  Color get _color {
+class _DiffTile extends StatelessWidget {
+  final BotDifficulty difficulty;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _DiffTile(
+      {required this.difficulty,
+      required this.isSelected,
+      required this.onTap});
+
+  Color get _c {
     switch (difficulty) {
       case BotDifficulty.easy:
         return const Color(0xFF2ECC71);
@@ -326,13 +455,13 @@ class _DifficultyTile extends StatelessWidget {
   String get _desc {
     switch (difficulty) {
       case BotDifficulty.easy:
-        return 'Random moves. Great for beginners.';
+        return 'Random moves';
       case BotDifficulty.medium:
-        return 'Prefers captures. Some strategy.';
+        return 'Prefers captures';
       case BotDifficulty.hard:
-        return 'Tactical. Protects flag, uses spies.';
+        return 'Tactical + flag-aware';
       case BotDifficulty.extreme:
-        return 'Minimax AI. Will crush you.';
+        return 'Minimax AI';
     }
   }
 
@@ -350,63 +479,95 @@ class _DifficultyTile extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: () async {
-          Navigator.pop(context);
-          final provider = context.read<GameProvider>();
-          await provider.startBotGame(difficulty);
-          if (context.mounted) {
-            Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const SetupScreen()),
-            );
-          }
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: _color.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _color.withOpacity(0.4)),
-          ),
-          child: Row(children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                  color: _color.withOpacity(0.15), shape: BoxShape.circle),
-              child: Center(
-                  child:
-                      Icon(Icons.smart_toy_rounded, color: _color, size: 20)),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: isSelected ? _c.withOpacity(0.15) : _c.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                  color: isSelected ? _c : _c.withOpacity(0.25),
+                  width: isSelected ? 1.5 : 1),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Row(children: [
-                    Text(BotAI(difficulty).difficultyLabel.toUpperCase(),
-                        style: GoogleFonts.rajdhani(
-                            color: _color,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
-                            fontSize: 14)),
-                    const SizedBox(width: 8),
-                    Text(_stars, style: TextStyle(color: _color, fontSize: 11)),
-                  ]),
-                  Text(_desc,
-                      style:
-                          TextStyle(color: AppTheme.textMuted, fontSize: 11)),
-                ])),
-            Icon(Icons.chevron_right, color: _color, size: 18),
+            child: Row(children: [
+              Icon(
+                  isSelected
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  color: _c,
+                  size: 16),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: Row(children: [
+                Text(BotAI(difficulty).difficultyLabel.toUpperCase(),
+                    style: TextStyle(
+                        color: _c,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        letterSpacing: 0.5)),
+                const SizedBox(width: 6),
+                Text(_stars, style: TextStyle(color: _c, fontSize: 10)),
+              ])),
+              Text(_desc,
+                  style: TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _RoleTile extends StatelessWidget {
+  final String role, label, subtitle;
+  final IconData icon;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _RoleTile({
+    required this.role,
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withOpacity(0.15) : AppTheme.surfaceLight,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: isSelected ? color : AppTheme.border,
+                width: isSelected ? 2 : 1),
+          ),
+          child: Column(children: [
+            Icon(icon,
+                color: isSelected ? color : AppTheme.textMuted, size: 26),
+            const SizedBox(height: 6),
+            Text(label,
+                style: TextStyle(
+                    color: isSelected ? color : AppTheme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    letterSpacing: 1)),
+            const SizedBox(height: 3),
+            Text(subtitle,
+                style: TextStyle(color: AppTheme.textMuted, fontSize: 9),
+                textAlign: TextAlign.center),
           ]),
         ),
-      ),
-    );
-  }
+      );
 }
 
 // ─── Waiting for Player Screen ───────────────────────────────────────────────
@@ -428,7 +589,7 @@ class WaitingForPlayerScreen extends StatelessWidget {
       return Scaffold(
         backgroundColor: AppTheme.background,
         body: Stack(children: [
-          const _PhilippineBackground(),
+          const PhilippineBackground(),
           SafeArea(
               child: Center(
                   child: ConstrainedBox(
@@ -438,7 +599,7 @@ class WaitingForPlayerScreen extends StatelessWidget {
               child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const _PhSunWidget(size: 60)
+                    const PhSunWidget(size: 60)
                         .animate(onPlay: (c) => c.repeat(reverse: true))
                         .scale(
                             begin: const Offset(0.9, 0.9),
@@ -525,138 +686,6 @@ class _RoomCodeDisplay extends StatelessWidget {
 }
 
 // ─── Philippine Background Decoration ────────────────────────────────────────
-
-class _PhilippineBackground extends StatelessWidget {
-  const _PhilippineBackground();
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: CustomPaint(painter: _PhBgPainter()),
-    );
-  }
-}
-
-class _PhBgPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Subtle diagonal blue/red split (Philippine flag triangle)
-    final paint = Paint()..style = PaintingStyle.fill;
-
-    // Very subtle top-left navy gradient triangle
-    paint.color = AppTheme.phNavy.withOpacity(0.07);
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width * 0.45, 0)
-      ..lineTo(0, size.height * 0.45)
-      ..close();
-    canvas.drawPath(path, paint);
-
-    // Bottom-right subtle red
-    paint.color = AppTheme.phRed.withOpacity(0.04);
-    final path2 = Path()
-      ..moveTo(size.width, size.height)
-      ..lineTo(size.width * 0.6, size.height)
-      ..lineTo(size.width, size.height * 0.6)
-      ..close();
-    canvas.drawPath(path2, paint);
-
-    // Horizontal stripe hints (very faint)
-    paint.color = AppTheme.phNavy.withOpacity(0.03);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height * 0.5), paint);
-    paint.color = AppTheme.phRed.withOpacity(0.03);
-    canvas.drawRect(
-        Rect.fromLTWH(0, size.height * 0.5, size.width, size.height * 0.5),
-        paint);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
-// ─── Philippine Sun Widget ────────────────────────────────────────────────────
-
-class _PhSunWidget extends StatelessWidget {
-  final double size;
-  const _PhSunWidget({required this.size});
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(painter: _SunPainter()),
-    );
-  }
-}
-
-class _SunPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final r = size.width / 2;
-    final paint = Paint()
-      ..color = AppTheme.phGold
-      ..style = PaintingStyle.fill;
-
-    // Draw 8 rays
-    final rayPaint = Paint()
-      ..color = AppTheme.phGold.withOpacity(0.7)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = size.width * 0.06
-      ..strokeCap = StrokeCap.round;
-
-    for (int i = 0; i < 8; i++) {
-      final angle = (i * 45) * pi / 180;
-      final inner = r * 0.42;
-      final outer = r * 0.88;
-      canvas.drawLine(
-        Offset(center.dx + inner * cos(angle), center.dy + inner * sin(angle)),
-        Offset(center.dx + outer * cos(angle), center.dy + outer * sin(angle)),
-        rayPaint,
-      );
-    }
-
-    // Sun circle
-    canvas.drawCircle(center, r * 0.38, paint);
-
-    // Inner detail circle
-    final inner = Paint()
-      ..color = AppTheme.background.withOpacity(0.3)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawCircle(center, r * 0.22, inner);
-
-    // 3 stars (small)
-    final starPaint = Paint()
-      ..color = AppTheme.phGold
-      ..style = PaintingStyle.fill;
-    _drawStar(
-        canvas, Offset(center.dx, center.dy - r * 0.18), r * 0.06, starPaint);
-  }
-
-  void _drawStar(Canvas canvas, Offset center, double radius, Paint paint) {
-    final path = Path();
-    for (int i = 0; i < 5; i++) {
-      final outer = Offset(
-        center.dx + radius * cos((i * 72 - 90) * pi / 180),
-        center.dy + radius * sin((i * 72 - 90) * pi / 180),
-      );
-      final inner = Offset(
-        center.dx + radius * 0.4 * cos(((i * 72 + 36) - 90) * pi / 180),
-        center.dy + radius * 0.4 * sin(((i * 72 + 36) - 90) * pi / 180),
-      );
-      if (i == 0)
-        path.moveTo(outer.dx, outer.dy);
-      else
-        path.lineTo(outer.dx, outer.dy);
-      path.lineTo(inner.dx, inner.dy);
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
 
 // ─── Reusable UI Components ───────────────────────────────────────────────────
 

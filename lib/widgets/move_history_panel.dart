@@ -25,7 +25,8 @@ class MoveHistoryPanel extends StatelessWidget {
                 children: [
                   Icon(Icons.history, color: AppTheme.accent, size: 16),
                   const SizedBox(width: 8),
-                  Text('MOVE HISTORY',
+                  Text(
+                    'MOVE HISTORY',
                     style: TextStyle(
                       color: AppTheme.textSecondary,
                       fontSize: 11,
@@ -35,7 +36,8 @@ class MoveHistoryPanel extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text('${history.length}',
-                    style: TextStyle(color: AppTheme.textMuted, fontSize: 11)),
+                      style:
+                          TextStyle(color: AppTheme.textMuted, fontSize: 11)),
                 ],
               ),
             ),
@@ -43,7 +45,8 @@ class MoveHistoryPanel extends StatelessWidget {
               child: history.isEmpty
                   ? Center(
                       child: Text('No moves yet',
-                        style: TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+                          style: TextStyle(
+                              color: AppTheme.textMuted, fontSize: 12)),
                     )
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -70,11 +73,13 @@ class MoveHistoryPanel extends StatelessWidget {
                               SizedBox(
                                 width: 28,
                                 child: Text('$moveNumber.',
-                                  style: TextStyle(
-                                    color: AppTheme.textMuted, fontSize: 10)),
+                                    style: TextStyle(
+                                        color: AppTheme.textMuted,
+                                        fontSize: 10)),
                               ),
                               Container(
-                                width: 6, height: 6,
+                                width: 6,
+                                height: 6,
                                 margin: const EdgeInsets.only(right: 6),
                                 decoration: BoxDecoration(
                                     color: color, shape: BoxShape.circle),
@@ -90,7 +95,7 @@ class MoveHistoryPanel extends StatelessWidget {
                               if (move.wasChallenge) ...[
                                 const Spacer(),
                                 Icon(Icons.bolt,
-                                  color: AppTheme.challengeColor, size: 12),
+                                    color: AppTheme.challengeColor, size: 12),
                               ],
                             ],
                           ),
