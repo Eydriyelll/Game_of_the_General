@@ -5,6 +5,7 @@
 //   - How it chooses moves during gameplay
 
 import 'dart:math';
+import 'package:flutter/material.dart' show Color;
 import '../models/piece.dart';
 import '../models/board_position.dart';
 
@@ -18,21 +19,46 @@ class BotMove {
 
 class BotAI {
   final BotDifficulty difficulty;
+  final int rating; // 100 (easiest) – 3200 (hardest)
   final Random _rand = Random();
 
-  BotAI(this.difficulty);
+  BotAI(this.difficulty, {this.rating = 800});
+
+  /// Create from a numeric rating (100–3200)
+  factory BotAI.fromRating(int rating) {
+    final clamped = rating.clamp(100, 3200);
+    BotDifficulty diff;
+    if (clamped < 700)
+      diff = BotDifficulty.easy;
+    else if (clamped < 1400)
+      diff = BotDifficulty.medium;
+    else if (clamped < 2200)
+      diff = BotDifficulty.hard;
+    else
+      diff = BotDifficulty.extreme;
+    return BotAI(diff, rating: clamped);
+  }
 
   String get difficultyLabel {
-    switch (difficulty) {
-      case BotDifficulty.easy:
-        return 'Easy';
-      case BotDifficulty.medium:
-        return 'Medium';
-      case BotDifficulty.hard:
-        return 'Hard';
-      case BotDifficulty.extreme:
-        return 'Extreme';
-    }
+    if (rating < 700) return 'Novice';
+    if (rating < 1100) return 'Beginner';
+    if (rating < 1400) return 'Amateur';
+    if (rating < 1700) return 'Intermediate';
+    if (rating < 2000) return 'Advanced';
+    if (rating < 2400) return 'Expert';
+    if (rating < 2800) return 'Master';
+    return 'Grandmaster';
+  }
+
+  Color get difficultyColor {
+    if (rating < 700) return const Color(0xFF9E9E9E); // grey
+    if (rating < 1100) return const Color(0xFF4CAF50); // green
+    if (rating < 1400) return const Color(0xFF8BC34A); // light green
+    if (rating < 1700) return const Color(0xFFFFC107); // amber
+    if (rating < 2000) return const Color(0xFFFF9800); // orange
+    if (rating < 2400) return const Color(0xFFF44336); // red
+    if (rating < 2800) return const Color(0xFF9C27B0); // purple
+    return const Color(0xFFE91E63); // deep pink
   }
 
   // ─── SETUP: Place bot pieces on rows 5-7 ──────────────────────────────────
@@ -253,9 +279,12 @@ class BotAI {
 
   List<BoardPosition> _allSetupPositions(
       {PieceOwner owner = PieceOwner.player2}) {
-    List<BoardPosition> positions = [];
+    // Player 1 deploys at rows 0-2 (top of data grid).
+    // Player 2 deploys at rows 5-7 (bottom of data grid).
+    // The visual flip in _CoordBoard makes each player see their rows at the bottom.
     final rows = owner == PieceOwner.player1 ? [0, 1, 2] : [5, 6, 7];
-    for (int row in rows) {
+    List<BoardPosition> positions = [];
+    for (final row in rows) {
       for (int col = 0; col < 9; col++) {
         positions.add(BoardPosition(row, col));
       }
@@ -400,7 +429,9 @@ class BotAI {
     }
 
     // Add small randomness to avoid deterministic play
-    score += _rand.nextInt(difficulty == BotDifficulty.extreme ? 3 : 8);
+    // Higher rating = less randomness in scoring
+    final randomRange = (3200 - rating) ~/ 200 + 1;
+    score += _rand.nextInt(randomRange.clamp(1, 15));
 
     return score;
   }

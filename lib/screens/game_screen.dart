@@ -1,5 +1,6 @@
 // lib/screens/game_screen.dart
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -30,7 +31,8 @@ class GameScreen extends StatelessWidget {
                 ? _WideLayout(provider: provider)
                 : _NarrowLayout(provider: provider);
           })),
-          if (provider.showChallengeFlash) const _ChallengeFlash(),
+          if (provider.hasPendingChallenge)
+            _ChallengeOverlay(pending: provider.challengePending!),
           if (provider.drawOfferedBy != null &&
               provider.drawOfferedBy != provider.playerRole)
             _DrawDialog(provider: provider),
@@ -203,51 +205,300 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _ChallengeFlash extends StatelessWidget {
-  const _ChallengeFlash();
+class _ChallengeOverlay extends StatefulWidget {
+  final Map<String, dynamic> pending;
+  const _ChallengeOverlay({required this.pending});
+  @override
+  State<_ChallengeOverlay> createState() => _ChallengeOverlayState();
+}
+
+class _ChallengeOverlayState extends State<_ChallengeOverlay> {
+  int _countdown = 5; // 5-second countdown
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCountdown();
+  }
+
+  void _startCountdown() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_countdown > 1) {
+        setState(() => _countdown--);
+      } else {
+        t.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final phase = widget.pending['phase'] ?? 'countdown';
+    final isReveal = phase == 'reveal';
+    final attackerRole = widget.pending['attackerRole'] ?? '';
+    final outcome = widget.pending['outcome'] ?? '';
+    final atkColor = attackerRole == 'player1'
+        ? AppTheme.player1Color
+        : AppTheme.player2Color;
+    final defColor = attackerRole == 'player1'
+        ? AppTheme.player2Color
+        : AppTheme.player1Color;
+
     return IgnorePointer(
       child: Container(
-        color: AppTheme.phGold.withOpacity(0.06),
+        color: Colors.black.withOpacity(0.70),
         child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-            decoration: BoxDecoration(
-              color: AppTheme.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.phGold, width: 2),
-              boxShadow: [
-                BoxShadow(
-                    color: AppTheme.phGold.withOpacity(0.35),
-                    blurRadius: 24,
-                    spreadRadius: 4)
-              ],
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.bolt_rounded, color: AppTheme.phGold, size: 22),
-              const SizedBox(width: 10),
-              Text('CHALLENGE!',
-                  style: GoogleFonts.cinzel(
-                      color: AppTheme.phGold,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 3)),
-              const SizedBox(width: 10),
-              Icon(Icons.bolt_rounded, color: AppTheme.phGold, size: 22),
-            ]),
-          )
-              .animate()
-              .scale(begin: const Offset(0.8, 0.8), duration: 200.ms)
-              .fadeIn(duration: 200.ms),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 400),
+            child: isReveal
+                ? _RevealCard(
+                    key: const ValueKey('reveal'),
+                    attackerRole: attackerRole,
+                    outcome: outcome,
+                    atkColor: atkColor,
+                    defColor: defColor,
+                  )
+                : _CountdownCard(
+                    key: ValueKey(_countdown),
+                    countdown: _countdown,
+                    atkColor: atkColor,
+                    defColor: defColor,
+                  ),
+          ),
         ),
       ),
-    )
-        .animate()
-        .fadeIn(duration: 150.ms)
-        .then()
-        .fadeOut(delay: 900.ms, duration: 300.ms);
+    );
   }
+}
+
+class _CountdownCard extends StatelessWidget {
+  final int countdown;
+  final Color atkColor, defColor;
+  const _CountdownCard(
+      {super.key,
+      required this.countdown,
+      required this.atkColor,
+      required this.defColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(40),
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.challengeColor, width: 2),
+        boxShadow: [
+          BoxShadow(
+              color: AppTheme.challengeColor.withOpacity(0.25), blurRadius: 30)
+        ],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.bolt_rounded, color: AppTheme.challengeColor, size: 22),
+          const SizedBox(width: 8),
+          Text('CHALLENGE!',
+              style: GoogleFonts.cinzel(
+                  color: AppTheme.challengeColor,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 3)),
+          const SizedBox(width: 8),
+          Icon(Icons.bolt_rounded, color: AppTheme.challengeColor, size: 22),
+        ]),
+        const SizedBox(height: 20),
+        // Show only player color indicators — no rank names revealed
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          _PlayerToken(color: atkColor, label: 'ATTACKER'),
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('VS',
+                  style: GoogleFonts.cinzel(
+                      color: AppTheme.textMuted,
+                      fontSize: 14,
+                      letterSpacing: 3))),
+          _PlayerToken(color: defColor, label: 'DEFENDER'),
+        ]),
+        const SizedBox(height: 24),
+        Text('Arbiter is deciding...',
+            style: TextStyle(
+                color: AppTheme.textMuted, fontSize: 12, letterSpacing: 1)),
+        const SizedBox(height: 12),
+        // Countdown circle
+        Container(
+          width: 68,
+          height: 68,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: AppTheme.challengeColor, width: 3),
+            color: AppTheme.surfaceLight,
+          ),
+          child: Center(
+              child: Text('$countdown',
+                  style: GoogleFonts.cinzel(
+                      color: AppTheme.challengeColor,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700))),
+        ).animate(key: ValueKey(countdown)).scale(
+            begin: const Offset(1.3, 1.3),
+            duration: 300.ms,
+            curve: Curves.easeOut),
+      ]),
+    );
+  }
+}
+
+class _RevealCard extends StatelessWidget {
+  final String attackerRole, outcome;
+  final Color atkColor, defColor;
+  const _RevealCard(
+      {super.key,
+      required this.attackerRole,
+      required this.outcome,
+      required this.atkColor,
+      required this.defColor});
+
+  @override
+  Widget build(BuildContext context) {
+    final myRole = context.read<GameProvider>().playerRole ?? '';
+
+    String headline;
+    String subtext;
+    Color resultColor;
+
+    switch (outcome) {
+      case 'attackerWins':
+        final attackerIsMe = attackerRole == myRole;
+        headline = attackerIsMe ? 'YOUR PIECE WINS' : 'OPPONENT WINS';
+        subtext = attackerIsMe
+            ? 'Your piece eliminated the defender!'
+            : 'The attacker eliminated your piece.';
+        resultColor = attackerIsMe ? AppTheme.accent : AppTheme.danger;
+        break;
+      case 'defenderWins':
+        final defenderIsMe = attackerRole != myRole;
+        headline = defenderIsMe ? 'YOUR PIECE WINS' : 'OPPONENT WINS';
+        subtext = defenderIsMe
+            ? 'Your piece held its ground!'
+            : 'The defender eliminated your piece.';
+        resultColor = defenderIsMe ? AppTheme.accent : AppTheme.danger;
+        break;
+      case 'bothEliminated':
+        headline = 'BOTH ELIMINATED';
+        subtext = 'Both pieces are removed from the board.';
+        resultColor = AppTheme.textSecondary;
+        break;
+      default:
+        headline = 'RESOLVED';
+        subtext = '';
+        resultColor = AppTheme.phGold;
+    }
+
+    return Container(
+      margin: const EdgeInsets.all(40),
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: resultColor, width: 2),
+        boxShadow: [
+          BoxShadow(color: resultColor.withOpacity(0.25), blurRadius: 30)
+        ],
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('RESULT',
+            style: GoogleFonts.cinzel(
+                color: AppTheme.textSecondary, fontSize: 11, letterSpacing: 5)),
+        const SizedBox(height: 16),
+        // Result icon
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: resultColor.withOpacity(0.15),
+            border: Border.all(color: resultColor, width: 2),
+          ),
+          child: Center(
+              child: Icon(
+            outcome == 'bothEliminated'
+                ? Icons.close_rounded
+                : outcome == 'attackerWins'
+                    ? (attackerRole == myRole
+                        ? Icons.military_tech_rounded
+                        : Icons.shield_outlined)
+                    : (attackerRole != myRole
+                        ? Icons.military_tech_rounded
+                        : Icons.shield_outlined),
+            color: resultColor,
+            size: 28,
+          )),
+        ).animate().scale(
+            begin: const Offset(0.6, 0.6),
+            duration: 400.ms,
+            curve: Curves.elasticOut),
+        const SizedBox(height: 16),
+        Text(headline,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.cinzel(
+                color: resultColor,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 2)),
+        if (subtext.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(subtext,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 12, height: 1.4)),
+        ],
+      ]),
+    );
+  }
+}
+
+// _PlayerToken: coloured circle with player label (no rank shown)
+class _PlayerToken extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _PlayerToken({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withOpacity(0.15),
+              border: Border.all(color: color, width: 2),
+            ),
+            child: Center(
+                child: Icon(Icons.person_rounded, color: color, size: 24)),
+          ),
+          const SizedBox(height: 6),
+          Text(label,
+              style: TextStyle(
+                  color: color,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1)),
+        ],
+      );
 }
 
 class _BotThinkingIndicator extends StatelessWidget {

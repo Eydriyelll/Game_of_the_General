@@ -66,10 +66,10 @@ class PieceTrayWidget extends StatelessWidget {
         child: GridView.builder(
           physics: const BouncingScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 68,
+            maxCrossAxisExtent: 72,
             crossAxisSpacing: 5,
             mainAxisSpacing: 5,
-            childAspectRatio: 0.76,
+            childAspectRatio: 0.68,
           ),
           itemCount: slots.length,
           itemBuilder: (ctx, i) {
@@ -195,9 +195,9 @@ class _TraySlot extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Expanded(
-              flex: 3,
+              flex: 5,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(6, 6, 6, 1),
+                padding: const EdgeInsets.fromLTRB(6, 6, 6, 2),
                 child: PieceIcon(
                   rank: slot.rank,
                   color: isPlaced ? rankColor.withOpacity(0.3) : rankColor,
@@ -205,17 +205,35 @@ class _TraySlot extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(2, 0, 2, 5),
+              padding: const EdgeInsets.fromLTRB(3, 0, 3, 2),
               child: Text(
-                _label(slot.rank),
+                _shortLabel(slot.rank),
                 style: TextStyle(
                   color: isPlaced ? rankColor.withOpacity(0.25) : rankColor,
-                  fontSize: 6.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.2,
+                  fontSize: 6.8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.3,
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(3, 0, 3, 4),
+              child: Text(
+                _fullName(slot.rank),
+                style: TextStyle(
+                  color: isPlaced
+                      ? AppTheme.textMuted.withOpacity(0.25)
+                      : AppTheme.textSecondary.withOpacity(0.7),
+                  fontSize: 5.8,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.1,
+                  height: 1.1,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -258,7 +276,7 @@ class _TraySlot extends StatelessWidget {
     );
   }
 
-  static String _label(PieceRank rank) {
+  static String _shortLabel(PieceRank rank) {
     switch (rank) {
       case PieceRank.fiveStar:
         return '5★ GEN';
@@ -290,6 +308,41 @@ class _TraySlot extends StatelessWidget {
         return 'PVT';
       case PieceRank.flag:
         return 'FLAG';
+    }
+  }
+
+  static String _fullName(PieceRank rank) {
+    switch (rank) {
+      case PieceRank.fiveStar:
+        return '5-Star General';
+      case PieceRank.fourStar:
+        return '4-Star General';
+      case PieceRank.threeStar:
+        return '3-Star General';
+      case PieceRank.twoStar:
+        return '2-Star General';
+      case PieceRank.oneStar:
+        return '1-Star General';
+      case PieceRank.colonel:
+        return 'Colonel';
+      case PieceRank.ltColonel:
+        return 'Lt. Colonel';
+      case PieceRank.major:
+        return 'Major';
+      case PieceRank.captain:
+        return 'Captain';
+      case PieceRank.firstLt:
+        return '1st Lieutenant';
+      case PieceRank.secondLt:
+        return '2nd Lieutenant';
+      case PieceRank.sergeant:
+        return 'Sergeant';
+      case PieceRank.spy:
+        return 'Spy';
+      case PieceRank.private:
+        return 'Private';
+      case PieceRank.flag:
+        return 'Flag';
     }
   }
 }

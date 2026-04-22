@@ -108,10 +108,10 @@ class _LobbyScreenState extends State<LobbyScreen> {
       const PhSunWidget(size: 72),
       const SizedBox(height: 20),
       Text(
-        'GAME OF THE',
+        'GAMES OF THE',
         textAlign: TextAlign.center,
         style: GoogleFonts.cinzelDecorative(
-          fontSize: 14,
+          fontSize: 13,
           letterSpacing: 5,
           color: AppTheme.textSecondary,
         ),
@@ -127,17 +127,6 @@ class _LobbyScreenState extends State<LobbyScreen> {
           letterSpacing: 3,
         ),
       ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2),
-      const SizedBox(height: 2),
-      Text(
-        'Games of the General',
-        textAlign: TextAlign.center,
-        style: GoogleFonts.rajdhani(
-          fontSize: 11,
-          letterSpacing: 3,
-          color: AppTheme.textSecondary.withOpacity(0.6),
-          fontStyle: FontStyle.italic,
-        ),
-      ).animate().fadeIn(delay: 400.ms),
       const SizedBox(height: 6),
       // Philippine flag stripe
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -271,17 +260,312 @@ class _LobbyScreenState extends State<LobbyScreen> {
           onPressed: _showBotDifficultyDialog,
         ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.2),
 
-        const SizedBox(height: 24),
-        Center(
-          child: Text(
-            'Filipino Strategy Board Game • Est. 1970',
-            style: TextStyle(
-                color: AppTheme.textMuted, fontSize: 10, letterSpacing: 1),
+        const SizedBox(height: 20),
+        Divider(color: AppTheme.border.withOpacity(0.5)),
+        const SizedBox(height: 12),
+        // Bug report button
+        InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => _showBugReportDialog(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppTheme.border.withOpacity(0.5)),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.bug_report_rounded,
+                  color: AppTheme.textMuted, size: 14),
+              const SizedBox(width: 6),
+              Text('Report a Bug / Suggest a Feature',
+                  style: TextStyle(
+                      color: AppTheme.textMuted,
+                      fontSize: 10,
+                      letterSpacing: 0.5)),
+            ]),
           ),
         ),
+        const SizedBox(height: 10),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            '🎖 Beta Version — This game is still being actively developed. '
+            'More features, improvements, and fixes are on the way. '
+            'Enjoy the current build and please use the button above '
+            'to report any bugs or share your suggestions!',
+            style: TextStyle(
+                color: AppTheme.textMuted.withOpacity(0.7),
+                fontSize: 9,
+                height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: 8),
       ]),
     ).animate().fadeIn(delay: 100.ms, duration: 600.ms).slideY(begin: 0.05);
   }
+}
+
+void _showBugReportDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => _BugReportDialog(),
+  );
+}
+
+class _BugReportDialog extends StatefulWidget {
+  @override
+  State<_BugReportDialog> createState() => _BugReportDialogState();
+}
+
+class _BugReportDialogState extends State<_BugReportDialog> {
+  final _subjectCtrl = TextEditingController();
+  final _bodyCtrl = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _subjectCtrl.dispose();
+    _bodyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _sending = true);
+    final subject = Uri.encodeComponent(_subjectCtrl.text.trim());
+    final body = Uri.encodeComponent(_bodyCtrl.text.trim() +
+        '\n\n--- Sent from Games of the General App ---');
+    final mailtoUrl =
+        'mailto:araos.adriel06@gmail.com?subject=$subject&body=$body';
+    await _launchMailto(
+        context, mailtoUrl, _subjectCtrl.text.trim(), _bodyCtrl.text.trim());
+    if (mounted) {
+      setState(() => _sending = false);
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppTheme.borderLight),
+      ),
+      title: Row(children: [
+        Icon(Icons.bug_report_rounded, color: AppTheme.phGold, size: 20),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text('Report Bug / Suggest Feature',
+              style: GoogleFonts.cinzel(
+                  color: AppTheme.textPrimary, fontSize: 13)),
+        ),
+      ]),
+      content: Form(
+        key: _formKey,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(
+            'Your report will be copied to your clipboard so you can '
+            'paste it into an email to the developer.',
+            style: TextStyle(
+                color: AppTheme.textSecondary, fontSize: 11, height: 1.45),
+          ),
+          const SizedBox(height: 14),
+          TextFormField(
+            controller: _subjectCtrl,
+            style: TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+            decoration: _inputDeco('Subject (e.g. Bug: pieces duplicate)'),
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Required' : null,
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: _bodyCtrl,
+            style: TextStyle(color: AppTheme.textPrimary, fontSize: 13),
+            decoration:
+                _inputDeco('Describe the bug or suggestion in detail...'),
+            maxLines: 4,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Required' : null,
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.phNavy.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: AppTheme.borderLight),
+            ),
+            child: Row(children: [
+              Icon(Icons.mail_outline_rounded,
+                  color: AppTheme.accent, size: 13),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text('araos.adriel06@gmail.com',
+                    style: TextStyle(
+                        color: AppTheme.accent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+        ),
+        ElevatedButton.icon(
+          onPressed: _sending ? null : _submit,
+          icon: Icon(
+              _sending ? Icons.hourglass_empty_rounded : Icons.send_rounded,
+              size: 16),
+          label: Text(_sending ? 'Preparing...' : 'Send Report'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.phGold,
+            foregroundColor: Colors.black,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            textStyle:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+InputDecoration _inputDeco(String hint) => InputDecoration(
+      hintText: hint,
+      hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+      filled: true,
+      fillColor: AppTheme.surfaceLight,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: AppTheme.border)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: AppTheme.border)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: AppTheme.accent, width: 1.5)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    );
+
+Future<void> _launchMailto(
+    BuildContext context, String mailtoUrl, String subject, String body) async {
+  final fullReport = 'TO: araos.adriel06@gmail.com\n'
+      'SUBJECT: $subject\n\n'
+      '$body\n\n'
+      '--- Sent from Games of the General App ---';
+
+  // Copy immediately so even if dialog is dismissed the text is in clipboard
+  await Clipboard.setData(ClipboardData(text: fullReport));
+
+  if (!context.mounted) return;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppTheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: AppTheme.borderLight),
+      ),
+      title: Row(children: [
+        Icon(Icons.check_circle_rounded, color: AppTheme.accent, size: 20),
+        const SizedBox(width: 8),
+        Text('Report Copied!',
+            style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700)),
+      ]),
+      content: SingleChildScrollView(
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Your report has been copied to clipboard. '
+                'Open your email app and paste it in a new message to:',
+                style: TextStyle(
+                    color: AppTheme.textSecondary, fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceLight,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.accent.withOpacity(0.7)),
+                ),
+                child: SelectableText(
+                  'araos.adriel06@gmail.com',
+                  style: TextStyle(
+                      color: AppTheme.accent,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      letterSpacing: 0.3),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('Preview of your report:',
+                  style: TextStyle(
+                      color: AppTheme.textMuted,
+                      fontSize: 10,
+                      letterSpacing: 1)),
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: SelectableText(
+                  fullReport,
+                  style: TextStyle(
+                      color: AppTheme.textSecondary, fontSize: 10, height: 1.5),
+                ),
+              ),
+            ]),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text('Done', style: TextStyle(color: AppTheme.textMuted)),
+        ),
+        ElevatedButton.icon(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: fullReport));
+            if (ctx.mounted) {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                content: Text('Copied to clipboard again!'),
+                duration: Duration(seconds: 2),
+              ));
+            }
+          },
+          icon: const Icon(Icons.copy_all_rounded, size: 15),
+          label: const Text('Copy Again'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.phGold,
+            foregroundColor: Colors.black,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 // ─── Bot Difficulty Dialog ────────────────────────────────────────────────────
@@ -295,11 +579,14 @@ class _BotDifficultyDialog extends StatefulWidget {
 }
 
 class _BotDifficultyDialogState extends State<_BotDifficultyDialog> {
-  BotDifficulty? _selectedDifficulty;
-  String? _selectedRole; // 'player1' or 'player2'
+  double _rating = 800; // 100 – 3200
+  String? _selectedRole;
+
+  BotAI get _previewBot => BotAI.fromRating(_rating.round());
 
   @override
   Widget build(BuildContext context) {
+    final bot = _previewBot;
     return Dialog(
       backgroundColor: AppTheme.surface,
       shape: RoundedRectangleBorder(
@@ -309,27 +596,80 @@ class _BotDifficultyDialogState extends State<_BotDifficultyDialog> {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(22),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const PhSunWidget(size: 36),
-          const SizedBox(height: 14),
+          const PhSunWidget(size: 34),
+          const SizedBox(height: 12),
           Text('VS COMPUTER',
               style: GoogleFonts.cinzel(
                   fontSize: 15, color: AppTheme.textPrimary, letterSpacing: 2)),
           const SizedBox(height: 18),
 
-          // ── Step 1: Difficulty ──
-          _StepLabel(number: '1', label: 'SELECT DIFFICULTY'),
-          const SizedBox(height: 8),
-          ...BotDifficulty.values.map((d) => _DiffTile(
-                difficulty: d,
-                isSelected: _selectedDifficulty == d,
-                onTap: () => setState(() => _selectedDifficulty = d),
-              )),
+          // ── Step 1: Rating Slider ──
+          _StepLabel(number: '1', label: 'SET BOT RATING'),
+          const SizedBox(height: 12),
 
-          const SizedBox(height: 16),
+          // Rating display badge
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: bot.difficultyColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: bot.difficultyColor.withOpacity(0.6)),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Text('${_rating.round()}',
+                  style: GoogleFonts.cinzel(
+                      color: bot.difficultyColor,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(width: 12),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(bot.difficultyLabel.toUpperCase(),
+                    style: TextStyle(
+                        color: bot.difficultyColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        letterSpacing: 1)),
+                Text(_ratingDescription(_rating.round()),
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 10)),
+              ]),
+            ]),
+          ),
+          const SizedBox(height: 10),
+
+          // Slider
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: bot.difficultyColor,
+              thumbColor: bot.difficultyColor,
+              overlayColor: bot.difficultyColor.withOpacity(0.2),
+              inactiveTrackColor: AppTheme.border,
+              trackHeight: 4,
+            ),
+            child: Slider(
+              value: _rating,
+              min: 100, max: 3200,
+              divisions: 62, // steps of ~50
+              onChanged: (v) => setState(() => _rating = v),
+            ),
+          ),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text('100\nEasiest',
+                style: TextStyle(color: AppTheme.textMuted, fontSize: 8),
+                textAlign: TextAlign.center),
+            Text('1600\nIntermediate',
+                style: TextStyle(color: AppTheme.textMuted, fontSize: 8),
+                textAlign: TextAlign.center),
+            Text('3200\nHardest',
+                style: TextStyle(color: AppTheme.textMuted, fontSize: 8),
+                textAlign: TextAlign.center),
+          ]),
+
+          const SizedBox(height: 18),
 
           // ── Step 2: Choose Side ──
           _StepLabel(number: '2', label: 'CHOOSE YOUR SIDE'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(children: [
             Expanded(
                 child: _RoleTile(
@@ -356,27 +696,26 @@ class _BotDifficultyDialogState extends State<_BotDifficultyDialog> {
 
           const SizedBox(height: 20),
 
-          // ── Start button ──
+          // ── Start ──
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: (_selectedDifficulty != null && _selectedRole != null)
+              onPressed: _selectedRole != null
                   ? () async {
-                      final d = _selectedDifficulty!;
                       final r = _selectedRole!;
+                      final rating = _rating.round();
                       Navigator.pop(context);
                       final provider = context.read<GameProvider>();
-                      await provider.startBotGame(d, role: r);
+                      await provider.startBotGame(BotDifficulty.easy,
+                          role: r, rating: rating);
                       if (context.mounted) {
-                        Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(
-                              builder: (_) => const SetupScreen()),
-                        );
+                        Navigator.of(context).pushReplacement(MaterialPageRoute(
+                            builder: (_) => const SetupScreen()));
                       }
                     }
                   : null,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.phGold,
+                backgroundColor: bot.difficultyColor,
                 foregroundColor: Colors.black,
                 disabledBackgroundColor: AppTheme.border,
                 disabledForegroundColor: AppTheme.textMuted,
@@ -388,7 +727,7 @@ class _BotDifficultyDialogState extends State<_BotDifficultyDialog> {
                     fontSize: 14,
                     letterSpacing: 2),
               ),
-              child: const Text('START BATTLE'),
+              child: Text('START BATTLE — Rating ${_rating.round()}'),
             ),
           ),
           const SizedBox(height: 6),
@@ -400,6 +739,18 @@ class _BotDifficultyDialogState extends State<_BotDifficultyDialog> {
         ]),
       ),
     );
+  }
+
+  String _ratingDescription(int r) {
+    if (r < 400) return 'Random moves only';
+    if (r < 700) return 'Slightly prefers captures';
+    if (r < 1100) return 'Basic tactical awareness';
+    if (r < 1400) return 'Targets high-value pieces';
+    if (r < 1700) return 'Protects flag, uses spies';
+    if (r < 2000) return 'Multi-step planning';
+    if (r < 2400) return 'Strong tactical play';
+    if (r < 2800) return 'Near-optimal strategy';
+    return 'Virtually unbeatable';
   }
 }
 
@@ -635,6 +986,32 @@ class WaitingForPlayerScreen extends StatelessWidget {
                           style: TextStyle(
                               color: AppTheme.textMuted, fontSize: 11)),
                     ]),
+                    const SizedBox(height: 32),
+                    // Return to lobby button
+                    TextButton.icon(
+                      onPressed: () {
+                        context.read<GameProvider>().resetGame();
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                              builder: (_) => const LobbyScreen()),
+                          (_) => false,
+                        );
+                      },
+                      icon: Icon(Icons.arrow_back_rounded,
+                          size: 16, color: AppTheme.textMuted),
+                      label: Text('Back to Lobby',
+                          style: TextStyle(
+                              color: AppTheme.textMuted,
+                              fontSize: 12,
+                              letterSpacing: 0.5)),
+                      style: TextButton.styleFrom(
+                        side: BorderSide(color: AppTheme.border),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                      ),
+                    ),
                   ]),
             ),
           ))),
